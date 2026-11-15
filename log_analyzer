@@ -1,0 +1,60 @@
+import re
+from collections import Counter
+
+def parse_auth_log(file_path, threshold=3):
+    """
+    Parses an authentication log file to detect potential brute-force attacks
+    by counting failed login attempts per IP address.
+    """
+    ip_pattern = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b'
+    failed_attempts = []
+
+    print(f"[*] Analyzing log file: {file_path}\n")
+    
+    try:
+        with open(file_path, 'r') as file:
+            for line in file:
+                # Look for common failure indicators in auth logs
+                if "Failed password" in line or "authentication failure" in line:
+                    match = re.search(ip_pattern, line)
+                    if match:
+                        failed_attempts.append(match.group())
+                        
+        # Count occurrences of each IP
+        ip_counts = Counter(failed_attempts)
+        
+        print("--- Security Analysis Report ---")
+        flagged_ips = 0
+        
+        for ip, count in ip_counts.items():
+            if count >= threshold:
+                print(f"[!] ALERT: Potential brute-force attack detected from IP: {ip} ({count} failed attempts)")
+                flagged_ips += 1
+            else:
+                print(f"[i] Info: IP {ip} had {count} failed attempt(s)")
+                
+        if flagged_ips == 0:
+            print("\n[+] No suspicious brute-force patterns detected above the threshold.")
+        else:
+            print(f"\n[!] Total flagged malicious IPs: {flagged_ips}")
+
+    except FileNotFoundError:
+        print(f"[x] Error: The file '{file_path}' was not found.")
+    except Exception as e:
+        print(f"[x] An unexpected error occurred: {e}")
+
+if __name__ == "__main__":
+    # Example usage: Replace 'sample_auth.log' with your log file path
+    log_file = "sample_auth.log"
+    
+    # Create a dummy sample log file for testing if it doesn't exist
+    try:
+        with open(log_file, 'x') as f:
+            f.write("Jan 10 03:12:01 server sshd[1234]: Failed password for root from 192.168.1.50 port 22\n")
+            f.write("Jan 10 03:12:05 server sshd[1234]: Failed password for root from 192.168.1.50 port 22\n")
+            f.write("Jan 10 03:12:09 server sshd[1234]: Failed password for root from 192.168.1.50 port 22\n")
+            f.write("Jan 10 03:15:22 server sshd[1240]: Failed password for admin from 10.0.0.15 port 22\n")
+    except FileExistsError:
+        pass
+
+    parse_auth_log(log_file, threshold=3)
